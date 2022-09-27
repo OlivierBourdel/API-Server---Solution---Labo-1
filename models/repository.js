@@ -127,10 +127,59 @@ class Repository {
             objectsList = this.bindExtraData(objectsList);
         }
         if (params) {
+            let model = this.model;
+            let filteredAndSortedObjects = [];
             // TODO Laboratoire 2
+            let sortKeys = [];
+            let searchKeys = [];
+            Object.keys(params).forEach(function (paramName) {
+                if (paramName == "sort") {
+                    let keyValues = params[paramName];
+                    if (Array.isArray(keyValues)) {
+                        for (let key of keyValues) {
+                            let values = key.split(',');
+                            let descendant = (values.length > 1) && (values[1] == "desc");
+                            sortKeys.push({ key: values[0], asc: !descendant });
+                        }
+                    } else {
+                        let value = keyValues.split(',');
+                        let descendant = (value.length > 1) && (value[1] == "desc");
+                        sortKeys.push({ key: value[0], asc: !descendant });
+                    }
+                } else {
+                    // todo add search key
+                    if (paramName in model)
+                        searchKeys.push({key: paramName, value: params[paramName]});
+                }
+            });
+            // todo filter
+            if(searchKeys.length != 0){
+                for(let obj of objectsList){
+                    let valueMatches = false;
+                    for(let search of searchKeys){
+                        if(!(valueMatches = this.valueMatch(obj[search.key], search.value))){
+                            break;
+                        }
+                    }
+                    if(valueMatches){
+                        filteredAndSortedObjects.push(obj);
+                    }
+                }
+            }
+            else{
+                filteredAndSortedObjects = objectsList;
+            }
+
+            // todo sort
+            if(sortKeys.length != 0){
+                filteredAndSortedObjects.sort((a,b) => this.compare(a,b,sortKeys));
+            }
+        
+            return filteredAndSortedObjects;
         }
         return objectsList;
     }
+
     get(id) {
         for (let object of this.objects()) {
             if (object.Id === id) {
@@ -164,6 +213,42 @@ class Repository {
             }
         }
         return null;
+    }
+    valueMatch(value, searchValue) {
+        try {
+        let exp = '^' + searchValue.toLowerCase().replace(/\*/g, '.*') + '$';
+        return new RegExp(exp).test(value.toString().toLowerCase());
+        } catch (error) {
+        console.log(error);
+        return false;
+        }
+    }
+    compareNum(x, y) {
+        if (x === y) return 0;
+        else if (x < y) return -1;
+        return 1;
+    }
+    innerCompare(x, y) {
+        if ((typeof x) === 'string')
+            return x.localeCompare(y);
+        else
+            return this.compareNum(x, y);
+    }
+    compare(itemX, itemY, sortFields) {
+        let fieldIndex = 0;
+        let max = sortFields.length;
+        do {
+            let result = 0;
+            if (sortFields[fieldIndex].asc)
+                result = this.innerCompare(itemX[sortFields[fieldIndex].key], itemY[sortFields[fieldIndex].key]);
+            else
+                result = this.innerCompare(itemY[sortFields[fieldIndex].key], itemX[sortFields[fieldIndex].key]);
+            if (result == 0)
+                fieldIndex++;
+            else
+                return result;
+        } while (fieldIndex < max);
+        return 0;
     }
 }
 
